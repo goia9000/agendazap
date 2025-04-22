@@ -1,3 +1,5 @@
+import 'package:agendazap/politicaprivacidade.dart';
+import 'package:agendazap/sobre.dart';
 import 'package:flutter/material.dart';
 
 class MenuDrawer extends StatelessWidget {
@@ -12,7 +14,6 @@ class MenuDrawer extends StatelessWidget {
           SizedBox(
             height: 180,
             child: DrawerHeader(
-              
               decoration: const BoxDecoration(
                 color: Color(0xff44ad3a),
               ),
@@ -47,26 +48,64 @@ class MenuDrawer extends StatelessWidget {
               ),
             ),
           ),
-          const ListTile(
-            leading: Icon(
+          ListTile(
+            leading: const Icon(
               Icons.info,
               color: Colors.green,
             ),
-            title: Text('Sobre nós'),
+            title: const Text('Sobre nós'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const Sobre(),
+                ),
+              );
+            },
           ),
-          const ListTile(
-            leading: Icon(
-              Icons.policy,
-              color: Colors.green,
-            ),
-            title: Text('Política de privacidade'),
-          ),
+          ListTile(
+              leading: const Icon(
+                Icons.policy,
+                color: Colors.green,
+              ),
+              title: const Text('Política de privacidade'),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const Politicaprivacidade(),
+                  ),
+                );
+              }),
           const ListTile(
             leading: Icon(
               Icons.delete,
               color: Colors.red,
             ),
             title: Text('Excluir Todos os Dados'),
+            onTap: () async {
+              // Importa o pacote shared_preferences
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.clear(); // Limpa todos os dados armazenados
+
+              // Exibe um diálogo de confirmação
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Dados Excluídos'),
+                  content:
+                      const Text('Todos os dados foram excluídos com sucesso.'),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context); // Fecha o diálogo
+                      },
+                      child: const Text('OK'),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ],
       ),
