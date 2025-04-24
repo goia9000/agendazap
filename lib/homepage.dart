@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:agendazap/menu_drawer.dart';
+import 'package:open_share_plus/open.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 class Homepage extends StatefulWidget {
   const Homepage({super.key});
@@ -9,54 +13,77 @@ class Homepage extends StatefulWidget {
 }
 
 class _HomepageState extends State<Homepage> {
-  List<Map<String, String>> contacts = [
-    {'name': 'Contato 1', 'phone': '123456789'},
-    {'name': 'Contato 2', 'phone': '987654321'},
-  ];
+  List<Map<String, String>> contacts = [];
+
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadContacts();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveContacts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String encodedData = jsonEncode(contacts);
+    await prefs.setString('contacts', encodedData);
+  }
+
+  Future<void> _loadContacts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? encodedData = prefs.getString('contacts');
+    if (encodedData != null) {
+      setState(() {
+        contacts = (jsonDecode(encodedData) as List<dynamic>)
+            .map((item) => Map<String, String>.from(item as Map<String, dynamic>))
+            .toList();
+      });
+    }
+  }
 
   void _addContact(String name, String phone) {
     setState(() {
-      contacts.add(
-        {'name': name, 'phone': phone},
-      );
+      contacts.add({'name': name, 'phone': phone});
     });
+    _saveContacts();
   }
 
-  void _showAddContactDialog() {
-    String name = '';
-    String phone = '';
+  void _editContact(int index, String name, String phone) {
+    _nameController.text = name;
+    _phoneController.text = phone;
 
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text(
-            'Adicionar Contato',
+            'Editar Contato',
             style: TextStyle(color: Colors.green),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
-                onChanged: (value) {
-                  name = value;
-                },
+                controller: _nameController,
                 decoration: const InputDecoration(
-                  label: Text(
-                    'Nome',
-                    style: TextStyle(color: Colors.grey),
-                  ),
+                  labelText: 'Nome',
+                  labelStyle: TextStyle(color: Colors.grey),
                 ),
               ),
               TextField(
-                onChanged: (value) {
-                  phone = value;
-                },
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
                 decoration: const InputDecoration(
-                  label: Text(
-                    'Telefone',
-                    style: TextStyle(color: Colors.grey),
-                  ),
+                  labelText: 'Telefone',
+                  labelStyle: TextStyle(color: Colors.grey),
                 ),
               ),
             ],
@@ -73,8 +100,76 @@ class _HomepageState extends State<Homepage> {
             ),
             TextButton(
               onPressed: () {
-                if (name.isNotEmpty && phone.isNotEmpty) {
-                  _addContact(name, phone);
+                if (_nameController.text.isNotEmpty &&
+                    _phoneController.text.isNotEmpty) {
+                  setState(() {
+                    contacts[index] = {
+                      'name': _nameController.text,
+                      'phone': _phoneController.text,
+                    };
+                  });
+                  _saveContacts();
+                  Navigator.pop(context);
+                }
+              },
+              child: const Text(
+                'Salvar',
+                style: TextStyle(color: Colors.green),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showAddContactDialog() {
+    _nameController.clear();
+    _phoneController.clear();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text(
+            'Adicionar Contato',
+            style: TextStyle(color: Colors.green),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Nome',
+                  labelStyle: TextStyle(color: Colors.grey),
+                ),
+              ),
+              TextField(
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  labelText: 'Telefone',
+                  labelStyle: TextStyle(color: Colors.grey),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text(
+                'Cancelar',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                if (_nameController.text.isNotEmpty &&
+                    _phoneController.text.isNotEmpty) {
+                  _addContact(_nameController.text, _phoneController.text);
                   Navigator.pop(context);
                 }
               },
@@ -89,42 +184,30 @@ class _HomepageState extends State<Homepage> {
     );
   }
 
-  void _showEditContactDialog(int index) {
-    String name = contacts[index]['name'] ?? '';
-    String phone = contacts[index]['phone'] ?? '';
+  void _shareContactOnWhatsApp(String name, String phone) {
+    if (phone.isNotEmpty) {
+      Open.whatsApp(
+        whatsAppNumber: phone,
+        text: 'Olá $name, estou entrando em contato com você pelo Agenda Zap!',
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Número de telefone inválido!')),
+      );
+    }
+  }
 
+  void _confirmDeleteContact(int index) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text(
-            'Editar Contato',
-            style: TextStyle(color: Colors.green),
+            'Excluir Contato',
+            style: TextStyle(color: Colors.red),
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                onChanged: (value) {
-                  name = value;
-                },
-                decoration: const InputDecoration(
-                  labelText: 'Nome',
-                  labelStyle: TextStyle(color: Colors.grey),
-                ),
-                controller: TextEditingController(text: name),
-              ),
-              TextField(
-                onChanged: (value) {
-                  phone = value;
-                },
-                decoration: const InputDecoration(
-                  labelText: 'Telefone',
-                  labelStyle: TextStyle(color: Colors.grey),
-                ),
-                controller: TextEditingController(text: phone),
-              ),
-            ],
+          content: const Text(
+            'Tem certeza de que deseja excluir este contato?',
           ),
           actions: [
             TextButton(
@@ -138,16 +221,15 @@ class _HomepageState extends State<Homepage> {
             ),
             TextButton(
               onPressed: () {
-                if (name.isNotEmpty && phone.isNotEmpty) {
-                  setState(() {
-                    contacts[index] = {'name': name, 'phone': phone};
-                  });
-                  Navigator.pop(context);
-                }
+                setState(() {
+                  contacts.removeAt(index);
+                });
+                _saveContacts();
+                Navigator.pop(context);
               },
               child: const Text(
-                'Salvar',
-                style: TextStyle(color: Colors.green),
+                'Excluir',
+                style: TextStyle(color: Colors.red),
               ),
             ),
           ],
@@ -164,124 +246,55 @@ class _HomepageState extends State<Homepage> {
         centerTitle: true,
       ),
       drawer: const MenuDrawer(),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(4.0),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border.all(
-                    color: Colors.grey[500]!,
-                    width: 1.5,
-                  ),
-                  borderRadius: BorderRadius.circular(10.0),
-                ),
-                child: TextField(
-                  decoration: InputDecoration(
-                    prefixIcon: const Icon(
-                      Icons.search_rounded,
-                      color: Colors.green,
-                      size: 35,
-                    ),
-                    hintText: 'Pesquisar...',
-                    hintStyle: TextStyle(
-                      color: Colors.grey[400],
-                    ),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 15.0),
-                  ),
-                ),
+      body: contacts.isEmpty
+          ? const Center(
+              child: Text(
+                'Nenhum contato adicionado.',
+                style: TextStyle(fontSize: 18, color: Colors.grey),
               ),
-            ),
-            const SizedBox(height: 20),
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
+            )
+          : ListView.builder(
               itemCount: contacts.length,
               itemBuilder: (context, index) {
+                final name = contacts[index]['name'] ?? '';
+                final phone = contacts[index]['phone'] ?? '';
                 return ListTile(
-                  leading: Image.asset(
-                    width: 40,
-                    height: 40,
-                    'assets/whatsapp.png',
+                  leading: const FaIcon(
+                    FontAwesomeIcons.whatsapp,
+                    color: Colors.green,
+                    size: 40,
                   ),
-                  title: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        contacts[index]['name'] ?? '',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 18.5),
-                      ),
-                      Text(contacts[index]['phone'] ?? ''),
-                    ],
+                  title: GestureDetector(
+                    onTap: () {
+                      _shareContactOnWhatsApp(name, phone);
+                    },
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18.5,
+                          ),
+                        ),
+                        Text(phone),
+                      ],
+                    ),
                   ),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.edit),
+                        icon: const Icon(Icons.edit, color: Colors.green),
                         onPressed: () {
-                          _showEditContactDialog(index);
+                          _editContact(index, name, phone);
                         },
                       ),
                       IconButton(
                         icon: const Icon(Icons.delete, color: Colors.red),
                         onPressed: () {
-                          showDialog(
-                            context: context,
-                            builder: (BuildContext context) {
-                              return AlertDialog(
-                                title: const Text(
-                                  'Excluir Contato',
-                                  style: TextStyle(color: Colors.green),
-                                ),
-                                content: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'Deseja excluir esse contato?',
-                                      style: TextStyle(
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text('Nome: ${contacts[index]['name']}'),
-                                    Text(
-                                        'Telefone: ${contacts[index]['phone']}'),
-                                  ],
-                                ),
-                                actions: [
-                                  TextButton(
-                                    child: const Text(
-                                      'Cancelar',
-                                      style: TextStyle(
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                    onPressed: () {
-                                      Navigator.of(context).pop();
-                                    },
-                                  ),
-                                  TextButton(
-                                    child: const Text(
-                                      'Excluir',
-                                      style: TextStyle(color: Colors.red),
-                                    ),
-                                    onPressed: () {
-                                      setState(() {
-                                        contacts.removeAt(index);
-                                      });
-                                      Navigator.of(context).pop();
-                                    },
-                                  ),
-                                ],
-                              );
-                            },
-                          );
+                          _confirmDeleteContact(index);
                         },
                       ),
                     ],
@@ -289,16 +302,10 @@ class _HomepageState extends State<Homepage> {
                 );
               },
             ),
-          ],
-        ),
-      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddContactDialog,
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(100),
-        ),
         child: const Icon(Icons.add),
       ),
     );
